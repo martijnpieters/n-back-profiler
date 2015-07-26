@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>N-back profiler</title>
+    <style type="text/css">
+    #drop-zone {
+        border: 2px dashed #bbb;
+        -moz-border-radius: 5px;
+        -webkit-border-radius: 5px;
+        border-radius: 5px;
+        padding: 25px;
+        text-align: center;
+        font: 20pt bold 'Vollkorn';
+        color: #999;
+    }
+
+    #drop-zone.active {
+        border-color: blue;
+        background-color: #f6f6f6;
+    }
+
+    li.RED {
+        color: red;
+    }
+
+    li.BLUE {
+        color: blue;
+    }
+    </style>
+</head>
+<body>
+    <div id="drop-zone">Drop file here</div>
+    <ol id="images-result"></ul>
+
+    <script type="text/javascript">
+    var dropZone = document.getElementById('drop-zone');
+    var imagesResult = document.getElementById('images-result');
+    var content;
+
+    // Process the data array
+    function processData(content) {
+        if (Object.prototype.toString.call(content) === '[object Array]' && content.length > 0) {
+            var id = 0, image, button;
+            var images = [];
+            var buttons = [];
+
+            // Parse all items in the array and filter on IMAGE and BUTTON
+            for (var i = 0; i < content.length; i++) {
+                if (content[i].length >= 4) {
+                    switch(content[i][2]) {
+                        case 'IMAGE':
+                            id = content[i][3];
+                            image = content[i][4];
+                            images[id] = image;
+                            break;
+                        case 'BUTTON':
+                            button = content[i][3];
+                            buttons[id] = button;
+                            break;
+                    }
+                }
+            }
+
+            // Iterate over all images in the array and give them the right class (RED or BLUE)
+            imagesResult.innerHTML = '';
+            for (var i = 0; i < images.length; i++) {
+                if (images[i]) {
+                    var li = document.createElement('li');
+                    li.appendChild(document.createTextNode(images[i]));
+                    li.value = i+1;
+
+                    if (buttons[i]) li.className = buttons[i];
+
+                    imagesResult.appendChild(li);
+                }
+            }
+        }
+    }
+
+    // Read the dropped file
+    function handleFileSelect(evt) {
+        evt.stopPropagation();
+        evt.preventDefault();
+        evt.target.className = '';
+
+        var files = evt.dataTransfer.files;
+        if (!files.length) {
+            alert('Please select a file!');
+            return;
+        }
+        var file = files[0];
+
+        var output = [];
+        var reader = new FileReader();
+
+        // If we use onloadend, we need to check the readyState.
+        reader.onloadend = function(evt) {
+            if (evt.target.readyState == FileReader.DONE) { // DONE == 2
+                content = evt.target.result;
+
+                var contentArray = CSVToArray(content, ';');
+                processData(contentArray);
+            }
+        };
+
+        var blob = file.slice(0, file.size - 1);
+        reader.readAsBinaryString(blob);
+    }
+
+    // Handle the drop effect and give the class name 'active'
+    function handleDragOver(evt) {
+        evt.stopPropagation();
+        evt.preventDefault();
+        evt.dataTransfer.dropEffect = 'copy'; // Explicitly show this is a copy.
+        evt.target.className = 'active';
+    }
+
+    // Remove class name 'active'
+    function handleDragLeave(evt) {
+        evt.target.className = '';
+    }
+
+    // Setup the dnd listeners.
+    dropZone.addEventListener('dragover', handleDragOver, false);
+    dropZone.addEventListener('dragleave', handleDragLeave, false);
+    dropZone.addEventListener('drop', handleFileSelect, false);
+    </script>
+
+    <script type="text/javascript">
+    // ref: http://stackoverflow.com/a/1293163/2343
+    // This will parse a delimited string into an array of
+    // arrays. The default delimiter is the comma, but this
+    // can be overriden in the second argument.
+    function CSVToArray( strData, strDelimiter ){
+        // Check to see if the delimiter is defined. If not,
+        // then default to comma.
+        strDelimiter = (strDelimiter || ",");
+
+        // Create a regular expression to parse the CSV values.
+        var objPattern = new RegExp(
+            (
+                // Delimiters.
+                "(\\" + strDelimiter + "|\\r?\\n|\\r|^)" +
+
+                // Quoted fields.
+                "(?:\"([^\"]*(?:\"\"[^\"]*)*)\"|" +
+
+                // Standard fields.
+                "([^\"\\" + strDelimiter + "\\r\\n]*))"
+            ),
+            "gi"
+        );
+
+
+        // Create an array to hold our data. Give the array
+        // a default empty first row.
+        var arrData = [[]];
+
+        // Create an array to hold our individual pattern
+        // matching groups.
+        var arrMatches = null;
+
+
+        // Keep looping over the regular expression matches
+        // until we can no longer find a match.
+        while (arrMatches = objPattern.exec( strData )){
+
+            // Get the delimiter that was found.
+            var strMatchedDelimiter = arrMatches[ 1 ];
+
+            // Check to see if the given delimiter has a length
+            // (is not the start of string) and if it matches
+            // field delimiter. If id does not, then we know
+            // that this delimiter is a row delimiter.
+            if (
+                strMatchedDelimiter.length &&
+                strMatchedDelimiter !== strDelimiter
+            ){
+
+                // Since we have reached a new row of data,
+                // add an empty row to our data array.
+                arrData.push( [] );
+
+            }
+
+            var strMatchedValue;
+
+            // Now that we have our delimiter out of the way,
+            // let's check to see which kind of value we
+            // captured (quoted or unquoted).
+            if (arrMatches[ 2 ]){
+
+                // We found a quoted value. When we capture
+                // this value, unescape any double quotes.
+                strMatchedValue = arrMatches[ 2 ].replace(
+                    new RegExp( "\"\"", "g" ),
+                    "\""
+                );
+
+            } else {
+
+                // We found a non-quoted value.
+                strMatchedValue = arrMatches[ 3 ];
+
+            }
+
+
+            // Now that we have our value string, let's add
+            // it to the data array.
+            arrData[ arrData.length - 1 ].push( strMatchedValue );
+        }
+
+        // Return the parsed data.
+        return( arrData );
+    }
+    </script>
+
+</body>
+</html>
